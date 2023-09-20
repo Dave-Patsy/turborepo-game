@@ -1,0 +1,434 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// generator erd {
+//   provider = "prisma-erd-generator"
+// }
+
+// generator dbml {
+//   provider = "prisma-dbml-generator"
+// }
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  full_name String?
+  billing_address Json?
+  payment_method Json?
+
+  song Songs[]
+  likedSongs LikedSongs[]
+  accounts      Account[]
+  sessions      Session[]
+  todo Todo[]
+  subscription Subscriptions[]
+  customer Customers[]
+  
+  servers Server[]
+  members Member[]
+  channels Channel[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  
+}
+
+enum CircuitType {
+  STRAIGHT
+  SUPER
+  DROP
+  COMPOUND
+  PYRAMID
+  RESTPAUSE
+  TIMEUNDER
+  TRIGIANT
+}
+
+model Routine {
+  id      String    @id @default(cuid())
+  created DateTime  @default(now())
+  title   String
+  circuit Circuit[]
+  routineEvent RoutineEvent[]
+}
+
+model RoutineEvent {
+  id  String @id @default(cuid())
+  date DateTime
+  completed Boolean
+  routineId String
+  routine Routine @relation(fields: [routineId], references: [id])
+}
+
+model Circuit {
+  id        String      @id @default(cuid())
+  created   DateTime    @default(now())
+  type      CircuitType
+  setGroup  SetGroup[]
+  routineId String
+  routine   Routine     @relation(fields: [routineId], references: [id])
+}
+
+model SetGroup {
+  id         String       @id @default(cuid())
+  exerciseName String
+  exerciseId String
+  exercise   Exercise @relation(fields: [exerciseId,exerciseName], references: [id,name])
+  setDetails Set[]
+  circuitId  String
+  circuit    Circuit      @relation(fields: [circuitId], references: [id])
+}
+
+model Set {
+  id         String   @id @default(cuid())
+  date       DateTime @default(now())
+  completed  DateTime?
+  weight     Int
+  reps       Int
+  setGroupId      String
+  setGroup        SetGroup      @relation(fields: [setGroupId], references: [id])
+}
+
+
+model Exercise {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  muscles     String[]
+  imageUrl    String?
+  setDetails  SetGroup[]
+
+  @@unique([id, name])
+}
+
+
+// stripe models
+// stripe models
+// stripe models
+// stripe models
+// stripe models
+
+
+model Customers {
+  id String @id @default(cuid())
+  stripe_customer_id String
+  userId String?
+  user User? @relation(references: [id],fields: [userId])
+}
+
+enum Pricing_type {
+  ONE_TIME @map("one_time")
+  RECURRING @map("recurring")
+  
+}
+enum Pricing_plan_interval  {
+  DAY @map("day")
+  WEEK @map("week")
+  MONTH @map("month")
+  YEAR @map("year")
+  
+}
+
+model Prices {
+  // -- Price ID from Stripe, e.g. price_1234.
+  id String @id
+  // -- The ID of the prduct that this price belongs to.
+  // product_id text references products
+  product_id String?
+  product Products? @relation(references: [id],fields: [product_id])
+  // -- Whether the price can be used for new purchases.
+  active Boolean?
+  // -- A brief description of the price.
+  description String?
+  // -- The unit amount as a positive integer in the smallest currency unit (e.g., 100 cents for US$1.00 or 100 for ¥100, a zero-decimal currency).
+  unit_amount Int?
+  // -- Three-letter ISO currency code, in lowercase.
+  currency String ?
+  // -- One of `one_time` or `recurring` depending on whether the price is for a one-time purchase or a recurring (subscription) purchase.
+  type Pricing_type?
+  // -- The frequency at which a subscription is billed. One of `day`, `week`, `month` or `year`.
+  interval Pricing_plan_interval?
+  // -- The number of intervals (specified in the `interval` attribute) between subscription billings. For example, `interval=month` and `interval_count=3` bills every 3 months.
+  interval_count Int?
+  // -- Default number of trial days when subscribing a customer to this price using [`trial_from_plan=true`](https://stripe.com/docs/api#create_subscription-trial_from_plan).
+  trial_period_days Int?
+  // -- Set of key-value pairs, used to store additional information about the object in a structured format.
+  metadata Json?
+  subscriptions Subscriptions[]
+}
+model Products {
+  // Product ID from Stripe, e.g. prod_1234.
+  id String @id 
+  // -- Whether the product is currently available for purchase.
+  active Boolean?
+  // -- The product's name, meant to be displayable to the customer. Whenever this product is sold via a subscription, name will show up on associated invoice line item descriptions.
+  name String?
+  // -- The product's description, meant to be displayable to the customer. Use this field to optionally store a long form explanation of the product being sold for your own rendering purposes.
+  description String?
+  // --
+  prices Prices[]
+  // -- A URL of the product image in Stripe, meant to be displayable to the customer.
+  image String?
+  // -- Set of key-value pairs, used to store additional information about the object in a structured format.
+  metadata  Json?
+}
+enum Subscription_status {
+  TRIALING @map("trialing")
+  ACTIVE @map("active")
+  CANCELED  @map("canceled")
+  INCOMPLETE  @map("incomplete")
+  INCOMPLETE_EXPIRED @map("incomplete_expired")
+  PAST_DUE @map("past_due")
+  UNPAID @map("unpaid")
+
+}
+model Subscriptions {
+  // -- Subscription ID from Stripe, e.g. sub_1234.
+  id String @id 
+
+  // user_id uuid references auth.users not null,
+  // -- The status of the subscription object, one of subscription_status type above.
+  status Subscription_status?
+  // -- Set of key-value pairs, used to store additional information about the object in a structured format.
+  metadata Json?
+  // -- ID of the price that created this subscription.
+  price_id String?
+  price Prices? @relation(fields: [price_id], references: [id])
+  // -- Quantity multiplied by the unit amount of the price creates the amount of the subscription. Can be used to charge multiple seats.
+  quantity Int?
+  // -- If true the subscription has been canceled by the user and will be deleted at the end of the billing period.
+  cancel_at_period_end Boolean?
+  // -- Time at which the subscription was created.
+  created DateTime @default(now()) 
+  // -- Start of the current period that the subscription has been invoiced for.
+  current_period_start DateTime @default(now()) 
+  // -- End of the current period that the subscription has been invoiced for. At the end of this period, a new invoice will be created.
+  current_period_end DateTime @default(now()) 
+  // -- If the subscription has ended, the timestamp of the date the subscription ended.
+  ended_at DateTime? @default(now()) 
+  // -- A date in the future at which the subscription will automatically get canceled.
+  cancel_at DateTime? @default(now()) 
+  // -- If the subscription has been canceled, the date of that cancellation. If the subscription was canceled with `cancel_at_period_end`, `canceled_at` will still reflect the date of the initial cancellation request, not the end of the subscription period when the subscription is automatically moved to a canceled state.
+  canceled_at DateTime? @default(now()) 
+  // -- If the subscription has a trial, the beginning of that trial.
+  trial_start DateTime? @default(now()) 
+  // -- If the subscription has a trial, the end of that trial.
+  trial_end DateTime? @default(now()) 
+
+  userId String 
+  user User @relation(references: [id],fields: [userId])
+}
+model Songs {
+  id String @id @default(cuid()) @unique
+  userId String
+  user User @relation(references: [id], fields: [userId])
+  author String
+  title String
+  song_path String
+  image_path String
+  likedSongsId String?
+  likedSongs LikedSongs? @relation(references: [id],fields: [likedSongsId])
+}
+model LikedSongs {
+  id String @id @default(cuid())
+  userId String @unique()
+  user User @relation(references: [id], fields: [userId])
+  songs Songs[]
+}
+
+
+model Todo {
+  id String @id @default(cuid())
+  content String
+  done Boolean @default(false)
+  userId String?
+  user User? @relation(references: [id], fields: [userId])
+
+
+}
+
+
+
+// Discord //
+
+model Server {
+  id String @id @default(uuid())
+  name String
+  imageUrl String @db.Text
+  inviteCode String @unique
+
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  members Member[]
+  channels Channel[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+enum MemberRole {
+  ADMIN
+  MODERATOR
+  GUEST
+}
+
+model Member {
+  id String @id @default(uuid())
+  role MemberRole @default(GUEST)
+
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  serverId String
+  server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  messages Message[]
+  directMessages DirectMessage[]
+
+  conversationsInitiated Conversation[] @relation("MemberOne")
+  conversationsReceived Conversation[] @relation("MemberTwo")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([serverId])
+
+}
+
+enum ChannelType {
+  TEXT 
+  AUDIO
+  VIDEO
+}
+
+model Channel {
+  id String @id @default(uuid())
+  name String
+  type ChannelType @default(TEXT)
+
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  serverId String
+  server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  messages Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId,serverId])
+}
+
+model Message {
+  id String @id @default(uuid())
+  content String @db.Text
+
+  fileUrl String? @db.Text
+
+  memberId String
+  member Member @relation(fields: [memberId],references: [id],onDelete: Cascade)
+
+  channelId String
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  
+  deleted Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([channelId])
+  @@index([memberId])
+
+}
+
+model Conversation {
+  id String @id @default(uuid())
+
+  memberOneId String
+  memberOne Member @relation("MemberOne", fields: [memberOneId], references: [id], onDelete: Cascade)
+
+  memberTwoId String
+  memberTwo Member @relation("MemberTwo", fields: [memberTwoId], references: [id], onDelete: Cascade)
+
+  directMessages DirectMessage[]
+
+  @@index([memberTwoId])
+
+  @@unique([memberOneId, memberTwoId])
+}
+
+model DirectMessage {
+  id String @id @default(uuid())
+  content String @db.Text
+  fileUrl String? @db.Text
+
+  memberId String
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  conversationId String
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  deleted Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([memberId])
+  @@index([conversationId])
+}
